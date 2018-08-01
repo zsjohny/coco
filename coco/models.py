@@ -7,6 +7,7 @@ import time
 
 from . import char
 from . import utils
+from .checker import Checker
 
 BUF_SIZE = 4096
 logger = utils.get_logger(__file__)
@@ -127,6 +128,7 @@ class BaseServer:
         if self._have_enter_char(b):
             self._in_input_state = False
             self._input = self._parse_input()
+            return self._input
         else:
             if not self._in_input_state:
                 self._output = self._parse_output()
@@ -140,6 +142,7 @@ class BaseServer:
                 self.input_data.clean()
                 self.output_data.clean()
             self._in_input_state = True
+        return None
 
     @staticmethod
     def _have_enter_char(s):
@@ -217,12 +220,19 @@ class Server(BaseServer):
         self.sock = sock
         self.asset = asset
         self.system_user = system_user
+        self.checker = Checker()
 
     def fileno(self):
         return self.chan.fileno()
 
     def send(self, b):
-        self.parse(b)
+        input = self.parse(b)
+        # Todo: check the input
+        if input:
+            if not self.checker.check_command(input):
+                self.chan.send(b'\x03')
+                # ToDo: send the forbidden message to the forwarder, because the client and forwarder are two interface, one idea is using terminate like message to send
+                return
         return self.chan.send(b)
 
     def recv(self, size):
@@ -446,4 +456,3 @@ class WSProxy:
         except (OSError, EOFError):
             pass
         logger.debug("Proxy {} closed".format(self))
-

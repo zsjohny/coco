@@ -8,7 +8,6 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-
 if __name__ == '__main__':
     try:
         subprocess.call(['./cocod', 'start'], stdin=sys.stdin,

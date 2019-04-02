@@ -319,6 +319,7 @@ default_config = {
     'LANGUAGE_CODE': 'zh',
     'SECURITY_MAX_IDLE_TIME': 60,
     'ASSET_LIST_PAGE_SIZE': 'auto',
+    'MFA_IP_WHITELIST': '',
 }
 
 config = Config(root_path, default_config)

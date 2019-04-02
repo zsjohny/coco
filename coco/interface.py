@@ -21,8 +21,9 @@ class SSHInterface(paramiko.ServerInterface):
     https://github.com/paramiko/paramiko/blob/master/demos/demo_server.py
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection, ip):
         self.connection = connection
+        self.ip = ip
         self.event = threading.Event()
         self.auth_valid = False
         self.otp_auth = False
@@ -30,26 +31,34 @@ class SSHInterface(paramiko.ServerInterface):
         self.user = None
 
     def check_auth_interactive(self, username, submethods):
-        logger.debug("Check auth interactive: %s %s" % (username, submethods))
-        instructions = 'Please enter 6 digits.'
-        interactive = paramiko.server.InteractiveQuery(instructions=instructions)
-        interactive.add_prompt(prompt='[MFA auth]: ')
-        return interactive
+        if self.ip in config['MFA_IP_WHITELIST']:
+            logger.debug("Check mfa_ip_whitelist success, ip: %s " % self.ip)
+            pass
+        else:
+            logger.debug("Check auth interactive: %s %s" % (username, submethods))
+            instructions = 'Please enter 6 digits.'
+            interactive = paramiko.server.InteractiveQuery(instructions=instructions)
+            interactive.add_prompt(prompt='[MFA auth]: ')
+            return interactive
 
     def check_auth_interactive_response(self, responses):
-        logger.debug("Check auth interactive response: %s " % responses)
-        # TODO：MFA Auth
-        otp_code = responses[0]
-        if not otp_code or not len(otp_code) == 6 or not otp_code.isdigit():
-            return paramiko.AUTH_FAILED
-        return self.check_auth_otp(otp_code)
+        if self.ip in config['MFA_IP_WHITELIST']:
+            logger.debug("Check mfa_ip_whitelist success, ip: %s " % self.ip)
+            pass
+        else:
+            logger.debug("Check auth interactive response: %s " % responses)
+            # TODO：MFA Auth
+            otp_code = responses[0]
+            if not otp_code or not len(otp_code) == 6 or not otp_code.isdigit():
+                return paramiko.AUTH_FAILED
+            return self.check_auth_otp(otp_code)
 
     def check_auth_otp(self, otp_code):
         seed = self.info.get('seed', '')
         if not seed:
             return paramiko.AUTH_FAILED
-
         is_valid = app_service.authenticate_otp(seed, otp_code)
+        logger.debug("Check auth opt is valid: %s " % is_valid)
         if is_valid:
             return paramiko.AUTH_SUCCESSFUL
         return paramiko.AUTH_FAILED
@@ -59,8 +68,12 @@ class SSHInterface(paramiko.ServerInterface):
 
     def get_allowed_auths(self, username):
         supported = []
-        if self.otp_auth:
-            return 'keyboard-interactive'
+        if self.ip in config['MFA_IP_WHITELIST']:
+            logger.debug("Check mfa_ip_whitelist success, ip: %s " % self.ip)
+            pass
+        else:
+            if self.otp_auth:
+                return 'keyboard-interactive'
         if config["PASSWORD_AUTH"]:
             supported.append("password")
         if config["PUBLIC_KEY_AUTH"]:
@@ -72,14 +85,19 @@ class SSHInterface(paramiko.ServerInterface):
 
     def check_auth_password(self, username, password):
         user = self.validate_auth(username, password=password)
+        logger.debug("check_auth_password user:%s" % user)
 
         if not user:
             logger.warning("Password and public key auth <%s> failed, reject it" % username)
             return paramiko.AUTH_FAILED
         else:
             logger.info("Password auth <%s> success" % username)
-            if self.otp_auth:
-                return paramiko.AUTH_PARTIALLY_SUCCESSFUL
+            if self.ip in config['MFA_IP_WHITELIST']:
+                logger.debug("Check mfa_ip_whitelist success, ip: %s " % self.ip)
+                pass
+            else:
+                if self.otp_auth:
+                    return paramiko.AUTH_PARTIALLY_SUCCESSFUL
             return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_publickey(self, username, key):
@@ -91,8 +109,12 @@ class SSHInterface(paramiko.ServerInterface):
             return paramiko.AUTH_FAILED
         else:
             logger.info("Public key auth <%s> success" % username)
-            if self.otp_auth:
-                return paramiko.AUTH_PARTIALLY_SUCCESSFUL
+            if self.ip in config['MFA_IP_WHITELIST']:
+                logger.debug("Check mfa_ip_whitelist success, ip: %s " % self.ip)
+                pass
+            else:
+                if self.otp_auth:
+                    return paramiko.AUTH_PARTIALLY_SUCCESSFUL
             return paramiko.AUTH_SUCCESSFUL
 
     @staticmethod
@@ -120,11 +142,18 @@ class SSHInterface(paramiko.ServerInterface):
                 not self.check_allow_ssh_user(username):
             logger.warn("User in black list or not allowed: {}".format(username))
             return None
+
+        logger.debug("validate_auth username:%s " % username)
+        logger.debug("validate_auth password:%s " % password)
+        logger.debug("validate_auth public_key:%s " % public_key)
+        logger.debug("validate_auth remote_addr:%s " % self.connection.addr[0])
+
         info = app_service.authenticate(
             username, password=password, public_key=public_key,
             remote_addr=self.connection.addr[0]
         )
         user = info.get('user', None)
+        logger.debug("validate_auth user:%s " % user)
         if user:
             self.connection.user = user
             self.info = info

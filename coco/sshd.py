@@ -70,7 +70,12 @@ class SSHServer:
             'sftp', paramiko.SFTPServer, SFTPServer
         )
         connection = Connection.new_connection(addr=addr, sock=sock)
-        server = SSHInterface(connection)
+        try:
+            ip = sock.getpeername()[0]
+        except Exception as e:
+            logger.error("Get remote user ip error: {}".format(e))
+
+        server = SSHInterface(connection, ip)
         try:
             transport.start_server(server=server)
             while transport.is_active():

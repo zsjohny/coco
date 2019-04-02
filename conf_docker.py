@@ -60,6 +60,9 @@ class Config:
     # Admin的名字，出问题会提示给用户
     ADMINS = os.environ.get("ADMINS") or ''
 
+    # mfa 认证是否支持ip白名单
+    MFA_IP_WHITELIST = os.environ.get("MFA_IP_WHITELIST") or ''
+
     COMMAND_STORAGE = {
         "TYPE": "server"
     }
